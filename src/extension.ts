@@ -16,7 +16,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	);
 
 	const tree = await fetchTree(owner, repo, ref);
-	provider.setTree(tree, `${owner}/${repo}`);
+	provider.setTree(tree, owner, repo, ref);
 
 	const alreadyMounted = (vscode.workspace.workspaceFolders ?? []).some(
 		(folder) => folder.uri.toString() === repoUri.toString()

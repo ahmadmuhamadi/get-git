@@ -68,8 +68,30 @@ export class GetGitFileSystemProvider implements vscode.FileSystemProvider {
 		return results;
 	}
 
-	readFile(): Uint8Array {
-		throw new Error('Not implemented yet');
+	async readFile(uri: vscode.Uri): Promise<Uint8Array> {
+		const path = this.normalizePath(uri.path);
+		const entry = this.tree.get(path);
+		if (!entry) {
+			throw vscode.FileSystemError.FileNotFound(uri);
+		}
+		if (entry.type !== 'file') {
+			throw vscode.FileSystemError.FileIsADirectory(uri);
+		}
+
+		const cached = this.blobCache.get(path);
+		if (cached) {
+			return cached;
+		}
+
+		const url = `https://raw.githubusercontent.com/${this.owner}/${this.repo}/${this.ref}/${path}`;
+		const response = await fetch(url);
+		if (!response.ok) {
+			throw vscode.FileSystemError.Unavailable(uri);
+		}
+
+		const bytes = new Uint8Array(await response.arrayBuffer());
+		this.blobCache.set(path, bytes);
+		return bytes;
 	}
 
 	writeFile(uri: vscode.Uri): void {
