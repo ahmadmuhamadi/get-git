@@ -19,7 +19,17 @@
         "command": "get-git.openRepo",
         "title": "Get Git: Open Repository"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "Get Git",
+      "properties": {
+        "get-git.gitlab.token": {
+          "type": "string",
+          "default": "",
+          "description": "Personal access token used for gitlab.com and any self-hosted GitLab instance, to raise API rate limits and access private projects."
+        }
+      }
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",

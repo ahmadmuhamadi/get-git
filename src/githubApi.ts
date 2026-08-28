@@ -1,7 +1,6 @@
-export interface TreeEntry {
-	type: 'file' | 'dir';
-	size: number;
-}
+import { TreeEntry, ensureParentDirs } from './treeEntry';
+
+export { TreeEntry };
 
 interface GitHubTreeItem {
 	path: string;
@@ -65,15 +64,11 @@ export async function fetchTree(owner: string, repo: string, ref: string, token?
 	return entries;
 }
 
-function ensureParentDirs(entries: Map<string, TreeEntry>, path: string): void {
-	let parent = parentPath(path);
-	while (parent !== '' && !entries.has(parent)) {
-		entries.set(parent, { type: 'dir', size: 0 });
-		parent = parentPath(parent);
+export async function fetchFile(owner: string, repo: string, ref: string, path: string): Promise<Uint8Array> {
+	const url = `https://raw.githubusercontent.com/${owner}/${repo}/${ref}/${path}`;
+	const response = await fetch(url);
+	if (!response.ok) {
+		throw new Error(`GitHub raw file request failed: ${response.status} ${response.statusText}`);
 	}
-}
-
-function parentPath(path: string): string {
-	const idx = path.lastIndexOf('/');
-	return idx === -1 ? '' : path.slice(0, idx);
+	return new Uint8Array(await response.arrayBuffer());
 }

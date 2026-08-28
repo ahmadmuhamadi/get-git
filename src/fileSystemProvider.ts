@@ -1,9 +1,11 @@
 import * as vscode from 'vscode';
-import { TreeEntry } from './githubApi';
+import { TreeEntry } from './treeEntry';
+import { getHostAdapter } from './hosts';
+import { GITHUB_HOST } from './parseRepoInput';
 
 interface RepoState {
-	owner: string;
-	repo: string;
+	host: string;
+	projectPath: string;
 	ref: string;
 	tree: Map<string, TreeEntry>;
 	blobCache: Map<string, Uint8Array>;
@@ -15,8 +17,8 @@ export class GetGitFileSystemProvider implements vscode.FileSystemProvider {
 
 	private readonly repos = new Map<string, RepoState>();
 
-	mountRepo(owner: string, repo: string, ref: string, tree: Map<string, TreeEntry>): void {
-		this.repos.set(`${owner}/${repo}`, { owner, repo, ref, tree, blobCache: new Map() });
+	mountRepo(host: string, projectPath: string, ref: string, tree: Map<string, TreeEntry>): void {
+		this.repos.set(`${host}/${projectPath}`, { host, projectPath, ref, tree, blobCache: new Map() });
 		this.onDidChangeFileEmitter.fire([{ type: vscode.FileChangeType.Changed, uri: vscode.Uri.parse('getgit:/') }]);
 	}
 
@@ -81,13 +83,17 @@ export class GetGitFileSystemProvider implements vscode.FileSystemProvider {
 			return cached;
 		}
 
-		const url = `https://raw.githubusercontent.com/${repoState.owner}/${repoState.repo}/${repoState.ref}/${path}`;
-		const response = await fetch(url);
-		if (!response.ok) {
+		const token = repoState.host === GITHUB_HOST
+			? undefined
+			: vscode.workspace.getConfiguration('get-git').get<string>('gitlab.token');
+
+		let bytes: Uint8Array;
+		try {
+			bytes = await getHostAdapter(repoState.host).fetchFile(repoState.projectPath, repoState.ref, path, token);
+		} catch {
 			throw vscode.FileSystemError.Unavailable(uri);
 		}
 
-		const bytes = new Uint8Array(await response.arrayBuffer());
 		repoState.blobCache.set(path, bytes);
 		return bytes;
 	}
@@ -110,11 +116,13 @@ export class GetGitFileSystemProvider implements vscode.FileSystemProvider {
 
 	private resolve(uri: vscode.Uri): { repoState: RepoState; path: string } {
 		const segments = uri.path.split('/').filter(Boolean);
-		const rootPrefix = segments.slice(0, 2).join('/');
-		const repoState = this.repos.get(rootPrefix);
-		if (!repoState) {
-			throw vscode.FileSystemError.FileNotFound(uri);
+		for (let len = segments.length; len >= 1; len--) {
+			const key = `${uri.authority}/${segments.slice(0, len).join('/')}`;
+			const repoState = this.repos.get(key);
+			if (repoState) {
+				return { repoState, path: segments.slice(len).join('/') };
+			}
 		}
-		return { repoState, path: segments.slice(2).join('/') };
+		throw vscode.FileSystemError.FileNotFound(uri);
 	}
 }
