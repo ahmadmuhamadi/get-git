@@ -10,11 +10,17 @@
     "Other"
   ],
   "activationEvents": [
-    "onStartupFinished",
     "onFileSystem:getgit"
   ],
   "main": "./out/extension.js",
-  "contributes": {},
+  "contributes": {
+    "commands": [
+      {
+        "command": "get-git.openRepo",
+        "title": "Get Git: Open Repository"
+      }
+    ]
+  },
   "scripts": {
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",

@@ -1,24 +1,22 @@
 import * as vscode from 'vscode';
 import { TreeEntry } from './githubApi';
 
+interface RepoState {
+	owner: string;
+	repo: string;
+	ref: string;
+	tree: Map<string, TreeEntry>;
+	blobCache: Map<string, Uint8Array>;
+}
+
 export class GetGitFileSystemProvider implements vscode.FileSystemProvider {
 	private readonly onDidChangeFileEmitter = new vscode.EventEmitter<vscode.FileChangeEvent[]>();
 	readonly onDidChangeFile = this.onDidChangeFileEmitter.event;
 
-	private tree = new Map<string, TreeEntry>();
-	private rootPrefix = '';
-	private owner = '';
-	private repo = '';
-	private ref = '';
-	private readonly blobCache = new Map<string, Uint8Array>();
+	private readonly repos = new Map<string, RepoState>();
 
-	setTree(tree: Map<string, TreeEntry>, owner: string, repo: string, ref: string): void {
-		this.tree = tree;
-		this.owner = owner;
-		this.repo = repo;
-		this.ref = ref;
-		this.rootPrefix = `${owner}/${repo}`;
-		this.blobCache.clear();
+	mountRepo(owner: string, repo: string, ref: string, tree: Map<string, TreeEntry>): void {
+		this.repos.set(`${owner}/${repo}`, { owner, repo, ref, tree, blobCache: new Map() });
 		this.onDidChangeFileEmitter.fire([{ type: vscode.FileChangeType.Changed, uri: vscode.Uri.parse('getgit:/') }]);
 	}
 
@@ -27,8 +25,8 @@ export class GetGitFileSystemProvider implements vscode.FileSystemProvider {
 	}
 
 	stat(uri: vscode.Uri): vscode.FileStat {
-		const path = this.normalizePath(uri.path);
-		const entry = this.tree.get(path);
+		const { repoState, path } = this.resolve(uri);
+		const entry = repoState.tree.get(path);
 		if (!entry) {
 			throw vscode.FileSystemError.FileNotFound(uri);
 		}
@@ -42,8 +40,8 @@ export class GetGitFileSystemProvider implements vscode.FileSystemProvider {
 	}
 
 	readDirectory(uri: vscode.Uri): [string, vscode.FileType][] {
-		const path = this.normalizePath(uri.path);
-		const entry = this.tree.get(path);
+		const { repoState, path } = this.resolve(uri);
+		const entry = repoState.tree.get(path);
 		if (!entry) {
 			throw vscode.FileSystemError.FileNotFound(uri);
 		}
@@ -54,7 +52,7 @@ export class GetGitFileSystemProvider implements vscode.FileSystemProvider {
 		const prefix = path === '' ? '' : `${path}/`;
 		const results: [string, vscode.FileType][] = [];
 
-		for (const [entryPath, entryValue] of this.tree) {
+		for (const [entryPath, entryValue] of repoState.tree) {
 			if (entryPath === '' || entryPath === path || !entryPath.startsWith(prefix)) {
 				continue;
 			}
@@ -69,8 +67,8 @@ export class GetGitFileSystemProvider implements vscode.FileSystemProvider {
 	}
 
 	async readFile(uri: vscode.Uri): Promise<Uint8Array> {
-		const path = this.normalizePath(uri.path);
-		const entry = this.tree.get(path);
+		const { repoState, path } = this.resolve(uri);
+		const entry = repoState.tree.get(path);
 		if (!entry) {
 			throw vscode.FileSystemError.FileNotFound(uri);
 		}
@@ -78,19 +76,19 @@ export class GetGitFileSystemProvider implements vscode.FileSystemProvider {
 			throw vscode.FileSystemError.FileIsADirectory(uri);
 		}
 
-		const cached = this.blobCache.get(path);
+		const cached = repoState.blobCache.get(path);
 		if (cached) {
 			return cached;
 		}
 
-		const url = `https://raw.githubusercontent.com/${this.owner}/${this.repo}/${this.ref}/${path}`;
+		const url = `https://raw.githubusercontent.com/${repoState.owner}/${repoState.repo}/${repoState.ref}/${path}`;
 		const response = await fetch(url);
 		if (!response.ok) {
 			throw vscode.FileSystemError.Unavailable(uri);
 		}
 
 		const bytes = new Uint8Array(await response.arrayBuffer());
-		this.blobCache.set(path, bytes);
+		repoState.blobCache.set(path, bytes);
 		return bytes;
 	}
 
@@ -110,15 +108,13 @@ export class GetGitFileSystemProvider implements vscode.FileSystemProvider {
 		throw vscode.FileSystemError.NoPermissions(uri);
 	}
 
-	private normalizePath(path: string): string {
-		let normalized = path.replace(/^\/+/, '').replace(/\/+$/, '');
-		if (this.rootPrefix !== '') {
-			if (normalized === this.rootPrefix) {
-				normalized = '';
-			} else if (normalized.startsWith(`${this.rootPrefix}/`)) {
-				normalized = normalized.slice(this.rootPrefix.length + 1);
-			}
+	private resolve(uri: vscode.Uri): { repoState: RepoState; path: string } {
+		const segments = uri.path.split('/').filter(Boolean);
+		const rootPrefix = segments.slice(0, 2).join('/');
+		const repoState = this.repos.get(rootPrefix);
+		if (!repoState) {
+			throw vscode.FileSystemError.FileNotFound(uri);
 		}
-		return normalized;
+		return { repoState, path: segments.slice(2).join('/') };
 	}
 }
