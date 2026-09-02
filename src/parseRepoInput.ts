@@ -1,7 +1,6 @@
 export const GITHUB_HOST = 'github.com';
 
 export interface ParsedRepo {
-	/** 'github.com' or the domain of a GitLab(-compatible) instance, e.g. 'gitlab.com' or 'gitlab.example.org'. */
 	host: string;
 	projectPath: string;
 	ref?: string;
@@ -65,7 +64,6 @@ function parseGitHubUrl(url: URL): ParseResult {
 	return { ok: true, value: { host: GITHUB_HOST, projectPath, subpath: segments.slice(2).join('/') } };
 }
 
-/** Handles gitlab.com as well as self-hosted GitLab instances at any domain, which use the same URL shape. */
 function parseGitLabUrl(url: URL): ParseResult {
 	const host = url.hostname;
 	const segments = url.pathname.split('/').filter(Boolean);

@@ -159,7 +159,6 @@ async function revealSubpath(repoUri: vscode.Uri, subpath: string): Promise<void
 			await vscode.window.showTextDocument(targetUri);
 		}
 	} catch {
-		// Subpath doesn't exist on this ref; leave the repo mounted without navigating.
 	}
 }
 

@@ -30,8 +30,6 @@ function gitlabAdapter(host: string): HostAdapter {
 		fetchFile: (projectPath, ref, path, token) => gitlabApi.fetchFile(host, projectPath, ref, path, token)
 	};
 }
-
-/** github.com gets the GitHub REST API; any other host is treated as a GitLab-compatible instance. */
 export function getHostAdapter(host: string): HostAdapter {
 	return host === GITHUB_HOST ? githubAdapter : gitlabAdapter(host);
 }
