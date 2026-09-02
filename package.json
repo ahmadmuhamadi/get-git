@@ -1,5 +1,6 @@
 {
   "name": "get-git",
+  "publisher": "ahmadmuhamadi",
   "displayName": "Get Git",
   "description": "inspect any repo inside vs code without cloning",
   "version": "0.0.1",
