@@ -3,6 +3,11 @@
   "displayName": "Get Git",
   "description": "inspect any repo inside vs code without cloning",
   "version": "0.0.1",
+  "icon": "images/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ahmadmuhamadi/get-git.git"
+  },
   "engines": {
     "vscode": "^1.134.0"
   },
